@@ -1,0 +1,7 @@
+logger.level:
+  com.example.kafka: DEBUG
+
+spring.kafka:
+  consumer:
+    group-id: springboot
+  bootstrap-servers: 192.168.99.100:32822
