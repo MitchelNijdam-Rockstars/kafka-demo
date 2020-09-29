@@ -4,14 +4,46 @@ services:
     image: wurstmeister/zookeeper
     ports:
       - "2181:2181"
-  kafka:
+    tmpfs: "/datalog"
+  kafka_broker_1:
     build: .
     ports:
-      - "9092"
+      - "9092:9092"
     depends_on:
       - "zookeeper"
     environment:
       KAFKA_ADVERTISED_HOST_NAME: 192.168.99.100
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LOG_SEGMENT_BYTES: 190
+      KAFKA_LOG_SEGMENT_DELETE_DELAY_MS: 1000
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 1000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+  kafka_broker_2:
+    build: .
+    ports:
+      - "9093:9092"
+    depends_on:
+      - "zookeeper"
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: 192.168.99.100
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LOG_SEGMENT_BYTES: 190
+      KAFKA_LOG_SEGMENT_DELETE_DELAY_MS: 1000
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 1000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+  kafka_broker_3:
+    build: .
+    ports:
+      - "9094:9092"
+    depends_on:
+      - "zookeeper"
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: 192.168.99.100
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LOG_SEGMENT_BYTES: 190
+      KAFKA_LOG_SEGMENT_DELETE_DELAY_MS: 1000
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 1000
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock

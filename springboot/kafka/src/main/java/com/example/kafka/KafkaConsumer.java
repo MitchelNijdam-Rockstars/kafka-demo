@@ -13,9 +13,9 @@ import org.springframework.stereotype.Component;
 public class KafkaConsumer {
     private final Logger logger = LoggerFactory.getLogger(KafkaConsumer.class);
 
-    @KafkaListener(topics = "yourTopic")
+    @KafkaListener(topics = "survey")
     private void listen(ConsumerRecord<String, String> record) {
-        logger.info("Received kafka record with offset: {}, key: {} and value: {}",
-                record.offset(), record.key(), record.topic());
+        logger.warn("Received kafka record with offset: {}, key: {} and value: {}",
+                record.offset(), record.key(), record.value());
     }
 }

@@ -1,6 +1,13 @@
 # kafka-demo
 Example project used to demonstrate Kafka. Docker files used from https://github.com/wurstmeister/kafka-docker
 
+## References
+
+- Kafka documentation https://kafka.apache.org/documentation/
+- Spring Initializr https://start.spring.io/
+- Kafkacat https://github.com/edenhill/kafkacat
+- Kafka minion https://github.com/cloudworkz/kafka-minion
+
 ## Pre-requisites
 
 - Docker
@@ -33,62 +40,87 @@ To stop all running docker containers: `docker-compose stop`
 
 ## Now use it!
 
-### Command line
+### Essentials
 
-Inside the container of the kafka broker (`docker exec`), go to the folder `/opt/kafka/bin/` where the shell scripts live.
+1. produce message (will auto create topic with 1 replication factor)
+    - `kafkacat -b 192.168.99.100:9092 -t email -P`
 
-**Create a topic with 1 partition**
-```
-./kafka-topics.sh --bootstrap-server <ip:port> --create --replication-factor 2 --partitions 1 --topic <topic>
-```
+2. consume message
+    - `kafkacat -b 192.168.99.100:9092 -C -t email`
+    - `kafkacat -b 192.168.99.100:9092 -C -t email -o 0 -p 0 -f '\nKey (%K bytes): %k\n  Value (%S bytes): %s\n  Partition: %p\n  Offset: %o\n  Headers: %h\n'`
+    - `kafkacat -h`
 
-**Create compacted topic**
-```
-./kafka-topics.sh  --bootstrap-server <ip:port> --create --topic <topic> --replication-factor 2 --partitions 1 --config cleanup.policy=compact
-```
+3. describe topic (see replication factor + check leader)
+    - `kafkacat -b 192.168.99.100:9092 -L -t email`
+    - `./kafka-topics.sh --bootstrap-server 192.168.99.100:9092 --describe  --topic email`
 
-**Describe the topic**
+4. now kill a broker that contains topic
+5. check that you're unable to consume messages (even with another broker)
+    - `kafkacat -b 192.168.99.100:9093 -C -t email`
+    - `kafkacat -b 192.168.99.100:9092 -L -t email`
 
-Kafka console tools:
-```
-./kafka-topics.sh --bootstrap-server <ip:port> --describe --topic <topic>
-```
-Kafkacat:
-```
-kafkacat -L -b <ip:port>
-```
+6. Check broker configurations of default replication factor and retention time
+    - `cat /opt/kafka/config/server.properties`
+    - `cat server.properties | grep 'partitions' -B 3`
+    - `num.partitions=1`
+    - See [kafka documentation](https://kafka.apache.org/documentation/)
 
-**Produce to a topic**
+### Replication with failover
 
-Kafka console tools:
-```
-./kafka-console-producer.sh --bootstrap-server <ip:port> --topic <topic>
-```
-Kafkacat:
-```
-kafkacat -b <ip:port> -t <topic> -P
-or
-echo "Hello World" | kafkacat -b <ip:port> -t <topic> -P
-```
+1. create replicated topic
+    - `./kafka-topics.sh --bootstrap-server 192.168.99.100:9092 --create --replication-factor 2 --partitions 1 --topic survey`
 
-**Consume from a topic**
+2. describe topic
+    - `kafkacat -b 192.168.99.100:<port> -L -t survey`
 
-Kafka console tools:
-```
-./kafka-console-consumer.sh --bootstrap-server <ip:port> --topic <topic> --from-beginning
-```
-Kafkacat:
-```
-kafkacat -b <ip:port> -t <topic> -C
-```
-or with more information and formatting (see `kafkacat -h`)
-```
-kafkacat -b <ip:port> -t <topic> -C \
-  -f '\nKey (%K bytes): %k\n  Value (%S bytes): %s\n  Partition: %p\n  Offset: %o\n  Headers: %h\n'
-```
+3. produce message
+    - `echo "some answer" | kafkacat -b 192.168.99.100:9092 -t survey`
 
-### Spring Boot application
+4. consume it
+    - `kafkacat -b 192.168.99.100:9092 -C -t survey -e`
+
+5. kill the leader broker
+6. check still able to consume message
+    - `kafkacat -b 192.168.99.100:9092 -C -t survey -e`
+
+### Spring boot
 
 In order to produce or consume Kafka messages in a Spring Boot application, the Spring community created the user friendly [Spring for Apache Kafka](https://spring.io/projects/spring-kafka) library.
 See an example in `/springboot` folder, or create an application using [Spring initializer](https://start.spring.io/#!type=gradle-project&language=java&platformVersion=2.3.4.RELEASE&packaging=jar&jvmVersion=11&groupId=com.example&artifactId=kafka&name=kafka&description=Demo%20kafka-consumer%20project%20with%20Spring%20Boot&packageName=com.example.kafka&dependencies=kafka,devtools).
+
+1. Start application with topic `survey`
+
+2. produce message to that topic, show the log
+    - `echo "another answer" | kafkacat -b 192.168.99.100:9092 -t survey`
+
+3. show consumer lag
+    - `./kafka-consumer-groups.sh --bootstrap-server 192.168.99.100:9092 --list`
+    - `./kafka-consumer-groups.sh --bootstrap-server 192.168.99.100:9092 --describe --group springboot`
+
+4. kill the consumer, produce a message and check consumer lag again
+    - `echo "yet another answer" | kafkacat -b 192.168.99.100:9092 -t survey`
+    - `./kafka-consumer-groups.sh --bootstrap-server 192.168.99.100:9092 --describe --group springboot`
+
+5. restart consumer, show consumed
+    - `./kafka-consumer-groups.sh --bootstrap-server 192.168.99.100:9092 --describe --group springboot`
+
+### Compaction
+
+1. create topic with compaction
+    - `./kafka-topics.sh --bootstrap-server 192.168.99.100:9092 --create --topic transaction --replication-factor 2 --partitions 1 --config cleanup.policy=compact --config min.cleanable.dirty.ratio=0.01 --config segment.ms=1000 --config delete.retention.ms=100`
+
+2. check compaction settings
+    - `cat /opt/kafka/config/server.properties`
+
+3. Start spring boot application with consuming from transaction topic
+4. produce messages with different keys
+    - `echo "14>{\"transactionId\":14,\"customerName\":\"Mitchel Nijdam\"}" | kafkacat -b 192.168.99.100:9092 -t transaction -P -K '>'`
+    - `echo "15>{\"transactionId\":15,\"customerName\":\"John Doe\"}" | kafkacat -b 192.168.99.100:9092 -t transaction -P -K '>'`
+    - `echo "15>{\"transactionId\":15,\"customerName\":\"Timothy Tseng\"}" | kafkacat -b 192.168.99.100:9092 -t transaction -P -K '>'`
+    - `echo "14>{\"transactionId\":14,\"customerName\":\"Mitchel Nijdam\"}" | kafkacat -b 192.168.99.100:9092 -t transaction -P -K '>'`
+    - `echo "16>{\"transactionId\":16,\"customerName\":\"Unknown\"}" | kafkacat -b 192.168.99.100:9092 -t transaction -P -K '>'`
+
+5. Check that all messages have been consumed one by one
+6. Restart Spring boot app with diffferent consumer group
+7. Show only latest message is consumed
 
