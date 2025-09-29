@@ -1,4 +1,4 @@
-# kafka-demo
+# Kafka Demo
 Example project used to demonstrate Kafka. Docker files used from https://github.com/wurstmeister/kafka-docker
 
 ## References
